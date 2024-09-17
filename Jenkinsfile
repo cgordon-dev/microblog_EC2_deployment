@@ -10,6 +10,20 @@ pipeline {
                 '''
 
                 echo 'Installing Python dependencies...'
+                sh '''
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                    pip install gunicorn pymysql cryptography
+                '''
+                echo 'Setting environmental variables...'
+                sh '''
+                    export FLASK_APP=microblog.py
+                '''
+
+                echo 'Upgrading the database...'
+                sh '''
+                    flask db upgrade
+                '''
             }
         }
         stage ('Test') {
