@@ -38,6 +38,12 @@ pipeline {
                 always {
                     junit 'test-reports/results.xml'
                 }
+                success {
+                    echo 'All tests passed successfully.'
+                }
+                failure {
+                    echo 'Some tests have failed, check the test reports for details.'
+                }
             }
         }
       stage ('OWASP FS SCAN') {
