@@ -3,9 +3,13 @@ pipeline {
     stages {
         stage ('Build') {
             steps {
+                echo 'Setting up the Python virtual environment...'
                 sh '''#!/bin/bash
-                <enter your code here>
+                    python3.9 -m venv venv
+                    source venv/bin/activate
                 '''
+
+                echo 'Installing Python dependencies...'
             }
         }
         stage ('Test') {
