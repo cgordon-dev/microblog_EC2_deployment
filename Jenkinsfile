@@ -14,6 +14,7 @@ pipeline {
                     pip install --upgrade pip
                     pip install -r requirements.txt
                     pip install gunicorn pymysql cryptography
+                    pip install pytest
                 '''
                 echo 'Setting environmental variables...'
                 sh '''
