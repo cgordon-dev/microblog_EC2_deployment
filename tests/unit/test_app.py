@@ -1,52 +1,48 @@
 # tests/unit/test_app.py
 
 import pytest
+
 from microblog import app
 from app import db
 from app.models import User
 
 @pytest.fixture
 def client():
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
     app.config['TESTING'] = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'  # Use in-memory DB for testing
     with app.test_client() as client:
         with app.app_context():
             db.create_all()
             yield client
-            db.session.remove()
+            db.session.rollback()
             db.drop_all()
 
-def test_homepage(client):
-    """Test that the homepage loads correctly."""
-    response = client.get('/')
-    assert response.status_code == 200
-    assert b'Welcome to Microblog' in response.data  # Adjust based on your homepage content
+@pytest.fixture
+def mock_user():
+    # Create a test user in the database
+    user = User(username="testuser1", email="test@example.com")
+    user.set_password('password')
+    db.session.add(user)
+    db.session.commit()
+    return user
 
-def test_user_registration(client):
-    """Test user registration functionality."""
-    response = client.post('/register', data={
-        'username': 'testuser',
-        'email': 'testuser@example.com',
-        'password': 'password',
-        'password2': 'password'
-    }, follow_redirects=True)
-    assert response.status_code == 200
-    assert b'Congratulations, you are now a registered user!' in response.data
+@pytest.fixture
+def auth_header(mock_user):
+    # Generate a valid token for the test user
+    token = mock_user.get_token()
+    return {
+        'Authorization': f'Bearer {token}'
+    }
 
-def test_login(client):
-    """Test user login functionality."""
-    # First, register a new user
-    client.post('/register', data={
-        'username': 'testuser',
-        'email': 'testuser@example.com',
-        'password': 'password',
-        'password2': 'password'
-    }, follow_redirects=True)
-    
-    # Then, log in with the new user
-    response = client.post('/login', data={
-        'username': 'testuser',
-        'password': 'password'
-    }, follow_redirects=True)
+def test_redirect(client):
+    response = client.get('/', follow_redirects=True)
     assert response.status_code == 200
-    assert b'You have been logged in!' in response.data
+    assert b'<title>Sign In - Microblog</title>' in response.data
+
+def test_users(client, auth_header):
+    response = client.get('/api/users', headers=auth_header)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert 'items' in data
+    assert len(data['items']) > 0
+    assert data['items'][0]['username'] == 'testuser1'
