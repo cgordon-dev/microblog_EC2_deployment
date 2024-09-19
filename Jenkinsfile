@@ -1,29 +1,17 @@
 pipeline {
-    agent any
+  agent any
     stages {
         stage ('Build') {
             steps {
-                echo 'Setting up the Python virtual environment...'
                 sh '''#!/bin/bash
-                    python3.9 -m venv venv
-                    source venv/bin/activate
-                '''
-
-                echo 'Installing Python dependencies...'
-                sh '''
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
-                    pip install gunicorn pymysql cryptography
-                    pip install pytest
-                '''
-                echo 'Setting environmental variables...'
-                sh '''
-                    export FLASK_APP=microblog.py
-                '''
-
-                echo 'Upgrading the database...'
-                sh '''
-                    flask db upgrade
+                python3.9 -m venv venv
+                source venv/bin/activate
+                pip install pip --upgrade
+                pip install -r requirements.txt
+                pip install gunicorn pymysql cryptography 
+                export FLASK_APP=microblog.py
+                flask translate compile
+                flask db upgrade
                 '''
             }
         }
@@ -31,6 +19,7 @@ pipeline {
             steps {
                 sh '''#!/bin/bash
                 source venv/bin/activate
+                export PYTHONPATH=$(pwd)
                 py.test ./tests/unit/ --verbose --junit-xml test-reports/results.xml
                 '''
             }
@@ -38,71 +27,50 @@ pipeline {
                 always {
                     junit 'test-reports/results.xml'
                 }
-                success {
-                    echo 'All tests passed successfully.'
-                }
-                failure {
-                    echo 'Some tests have failed, check the test reports for details.'
-                }
             }
         }
-        stage ('OWASP FS SCAN') {
+        stage('OWASP FS SCAN') {
             steps {
-                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
+                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit --nvdApiKey 835c57e7-963c-467b-8458-55db3aaa6f8c', odcInstallation: 'DP-Check'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
-        stage ('Clean') {
+      stage ('Clean') {
             steps {
                 sh '''#!/bin/bash
-                if [[ $(pgrep gunicorn | wc -l) -gt 0 ]]
-                then
-                    pgrep gunicorn > pid.txt
+                # Find the process ID of gunicorn using pgrep
+                pid=$(pgrep -f "gunicorn")
+
+                # Check if PID is found and is valid (non-empty)
+                if [[ -n "$pid" && "$pid" -gt 0 ]]; then
+                    echo "$pid" > pid.txt
                     kill $(cat pid.txt)
-                    echo 'Gunicorn processes terminated.'
+                    echo "Killed gunicorn process with PID $pid"
                 else
-                    echo 'No Gunicorn processes found.'
+                    echo "No gunicorn process found to kill"
                 fi
                 '''
             }
         }
-        stage('Deploy') {
+      stage ('Deploy') {
             steps {
-                echo 'Deploying application to EC2 instance...'
-                
-                sshagent(['EC2_SSH_Credentials']) { 
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no ubuntu@34.203.240.181 << 'EOF'
-                            echo 'Pulling latest code...'
-                            cd ~/microblog_EC2_deployment
-                            git pull origin main
+                sh '''#!/bin/bash
+                # Start Flask application
+                source venv/bin/activate
 
-                            echo 'Activating virtual environment...'
-                            source venv/bin/activate
+                # Restart the Gunicorn service
+                sudo /bin/systemctl restart gunicorn
 
-                            echo 'Installing dependencies...'
-                            pip install --upgrade pip
-                            pip install -r requirements.txt
-                            pip install gunicorn pymysql cryptography
-
-                            echo 'Applying database migrations...'
-                            flask db upgrade
-
-                            echo 'Restarting Gunicorn service...'
-                            sudo systemctl restart gunicorn
-
-                            echo 'Deployment completed successfully.'
-                        EOF
-                    '''
-                }
-            }
-            post {
-                success {
-                    echo 'Deployment stage completed successfully.'
-                }
-                failure {
-                    echo 'Deployment stage failed.'
-                }
+                # Check the status of the service
+                if sudo /bin/systemctl is-active --quiet gunicorn; then
+                    echo "Gunicorn restarted successfully"
+                else
+                    echo "Failed to restart Gunicorn"
+                    # Print logs for debugging
+                    sudo /bin/journalctl -u gunicorn.service
+                    exit 1
+                fi
+                '''
             }
         }
     }
