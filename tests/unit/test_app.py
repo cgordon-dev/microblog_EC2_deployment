@@ -1,8 +1,9 @@
 # tests/unit/test_app.py
 
 import pytest
-from microblog import app, db
-from microblog.models import User
+from microblog import app
+from app import db
+from app.models import User
 
 @pytest.fixture
 def client():
