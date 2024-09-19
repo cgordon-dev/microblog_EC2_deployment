@@ -1,5 +1,5 @@
 pipeline {
-  agent any
+    agent any
     stages {
         stage ('Build') {
             steps {
@@ -46,60 +46,64 @@ pipeline {
                 }
             }
         }
-      stage ('OWASP FS SCAN') {
+        stage ('OWASP FS SCAN') {
             steps {
                 dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
-      stage ('Clean') {
+        stage ('Clean') {
             steps {
                 sh '''#!/bin/bash
-                if [[ $(ps aux | grep -i "gunicorn" | tr -s " " | head -n 1 | cut -d " " -f 2) != 0 ]]
+                if [[ $(pgrep gunicorn | wc -l) -gt 0 ]]
                 then
-                ps aux | grep -i "gunicorn" | tr -s " " | head -n 1 | cut -d " " -f 2 > pid.txt
-                kill $(cat pid.txt)
-                exit 0
+                    pgrep gunicorn > pid.txt
+                    kill $(cat pid.txt)
+                    echo 'Gunicorn processes terminated.'
+                else
+                    echo 'No Gunicorn processes found.'
                 fi
                 '''
             }
         }
-      stage('Deploy') {
-    steps {
-        echo 'Deploying application to EC2 instance...'
-        
-        sshagent(['EC2_SSH_Credentials']) {
-            sh '''
-                ssh -o StrictHostKeyChecking=no ubuntu@34.203.240.181 << 'EOF'
-                    echo 'Pulling latest code...'
-                    cd ~/microblog_EC2_deployment
-                    git pull origin main
+        stage('Deploy') {
+            steps {
+                echo 'Deploying application to EC2 instance...'
+                
+                sshagent(['EC2_SSH_Credentials']) { 
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no ubuntu@34.203.240.181 << 'EOF'
+                            echo 'Pulling latest code...'
+                            cd ~/microblog_EC2_deployment
+                            git pull origin main
 
-                    echo 'Activating virtual environment...'
-                    source venv/bin/activate
+                            echo 'Activating virtual environment...'
+                            source venv/bin/activate
 
-                    echo 'Installing dependencies...'
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
-                    pip install gunicorn pymysql cryptography
+                            echo 'Installing dependencies...'
+                            pip install --upgrade pip
+                            pip install -r requirements.txt
+                            pip install gunicorn pymysql cryptography
 
-                    echo 'Applying database migrations...'
-                    flask db upgrade
+                            echo 'Applying database migrations...'
+                            flask db upgrade
 
-                    echo 'Restarting Gunicorn service...'
-                    sudo systemctl restart gunicorn
+                            echo 'Restarting Gunicorn service...'
+                            sudo systemctl restart gunicorn
 
-                    echo 'Deployment completed successfully.'
-                EOF
-            '''
-        }
-    }
-    post {
-        success {
-            echo 'Deployment stage completed successfully.'
-        }
-        failure {
-            echo 'Deployment stage failed.'
+                            echo 'Deployment completed successfully.'
+                        EOF
+                    '''
+                }
+            }
+            post {
+                success {
+                    echo 'Deployment stage completed successfully.'
+                }
+                failure {
+                    echo 'Deployment stage failed.'
+                }
+            }
         }
     }
 }
