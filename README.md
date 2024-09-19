@@ -77,16 +77,23 @@ $ gunicorn -w 4 -b 127.0.0.1:5000 microblog:app
 ```
 ![Microblog](images/Microblog-Signin-Page.png)
 
+---
+
 ### 5. Set Up Jenkins CI/CD Pipeline
 - Create a multi-branch pipeline in Jenkins called `workload_3`.
 - Configure the pipeline to pull the latest code from GitHub, build, test, and deploy the microblog application.
 - Ensure the Gunicorn process runs in the background to allow Jenkins to complete the deployment.
 
+
 ![Jenkins Pipeline Build Complete](images/Jenkins-Build-Successful.png)
+
 ![Jenkins Pipeline](images/Jenkins-Pipeline.png)
+
 ![Jenkins Pipeline Test Stage](images/Jenkins-Unit-Testing-Complete.png)
+
 ![Jenkins OWASP Dependency Check](images/Jenkins-OWASP-Scan.png)
-![Jenkins Pipeline 3](Diagram.jpg)
+
+--- 
 
 ### 6. Set Up Monitoring EC2 Instance (t3.micro)
 - **Step**: Launch another t3.micro EC2 instance named `Monitoring` for running Prometheus and Grafana.
